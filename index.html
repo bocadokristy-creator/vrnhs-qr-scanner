@@ -56,29 +56,15 @@
       color: #c62828;
     }
 
-    .student-name {
-      font-size: 22px;
+    .qr-value {
+      font-size: 28px;
       font-weight: bold;
-      margin: 10px 0;
-    }
-
-    .details {
-      font-size: 17px;
-      line-height: 1.6;
+      margin: 15px 0;
     }
 
     .time {
-      font-size: 20px;
-      font-weight: bold;
+      font-size: 18px;
       margin-top: 10px;
-    }
-
-    button {
-      font-size: 16px;
-      padding: 12px 20px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
     }
   </style>
 </head>
@@ -101,7 +87,7 @@
 
 let isProcessing = false;
 
-function onScanSuccess(decodedText) {
+function onScanSuccess(decodedText, decodedResult) {
 
   if (isProcessing) {
     return;
@@ -110,57 +96,78 @@ function onScanSuccess(decodedText) {
   isProcessing = true;
 
   document.getElementById("result").innerHTML =
-    "<p>Checking student...</p>";
-
-  /*
-    IMPORTANT:
-    We will connect this part to your
-    Google Apps Script after the webpage
-    is successfully working.
-  */
-
-  console.log("QR scanned:", decodedText);
-
-  document.getElementById("result").innerHTML =
     '<div class="success">' +
     '<h2>✓ QR SCANNED</h2>' +
-    '<div class="student-name">' +
+    '<div class="qr-value">' +
     decodedText +
     '</div>' +
-    '<p>Scanner is working.</p>' +
+    '<p>QR code successfully detected.</p>' +
     '</div>';
 
-  setTimeout(function() {
+  console.log("QR Code:", decodedText);
 
+  setTimeout(function() {
     isProcessing = false;
 
     document.getElementById("result").innerHTML =
       "<p>Ready to scan next student...</p>";
 
-  }, 2000);
-
+  }, 2500);
 }
 
 function onScanFailure(error) {
-  // Normal scanning failures are ignored.
+  // Ignore normal scanning failures.
 }
 
-const scanner = new Html5QrcodeScanner(
-  "reader",
-  {
-    fps: 10,
-    qrbox: {
-      width: 250,
-      height: 250
-    }
-  },
-  false
-);
+const html5QrCode = new Html5Qrcode("reader");
 
-scanner.render(
-  onScanSuccess,
-  onScanFailure
-);
+const config = {
+  fps: 10,
+  qrbox: {
+    width: 280,
+    height: 280
+  },
+  aspectRatio: 1.0
+};
+
+Html5Qrcode.getCameras()
+  .then(devices => {
+
+    if (devices && devices.length) {
+
+      let cameraId = devices[0].id;
+
+      // Prefer the back camera when available
+      if (devices.length > 1) {
+        cameraId = devices[devices.length - 1].id;
+      }
+
+      html5QrCode.start(
+        cameraId,
+        config,
+        onScanSuccess,
+        onScanFailure
+      );
+
+    } else {
+
+      document.getElementById("result").innerHTML =
+        '<div class="error">' +
+        '<h3>No camera found.</h3>' +
+        '</div>';
+
+    }
+
+  })
+  .catch(err => {
+
+    document.getElementById("result").innerHTML =
+      '<div class="error">' +
+      '<h3>Camera permission required.</h3>' +
+      '<p>' + err + '</p>' +
+      '</div>';
+
+  });
 
 </script>
 
