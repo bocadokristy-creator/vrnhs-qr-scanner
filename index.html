@@ -45,7 +45,7 @@
       background: white;
       border-radius: 12px;
       box-sizing: border-box;
-      min-height: 120px;
+      min-height: 150px;
     }
 
     .success {
@@ -56,15 +56,25 @@
       color: #c62828;
     }
 
-    .qr-value {
-      font-size: 28px;
+    .student-name {
+      font-size: 24px;
       font-weight: bold;
       margin: 15px 0;
     }
 
-    .time {
+    .details {
       font-size: 18px;
-      margin-top: 10px;
+      line-height: 1.7;
+    }
+
+    .qr-value {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .loading {
+      color: #555;
+      font-size: 18px;
     }
   </style>
 </head>
@@ -83,9 +93,22 @@
     <p>Ready to scan...</p>
   </div>
 
+
 <script>
 
+/*
+====================================================
+IMPORTANT:
+PASTE YOUR EXISTING APPS SCRIPT WEB APP URL BELOW
+====================================================
+*/
+
+const APP_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbw6Yd4QT3X47YD2BqZb5qD9Dv3UZ3qtmChC00DbjMdv1sHAQIbJq5wSfTeUfoqOKOB2/exec";
+
+
 let isProcessing = false;
+
 
 function onScanSuccess(decodedText, decodedResult) {
 
@@ -95,58 +118,199 @@ function onScanSuccess(decodedText, decodedResult) {
 
   isProcessing = true;
 
+  const qrId = decodedText.trim();
+
   document.getElementById("result").innerHTML =
-    '<div class="success">' +
-    '<h2>✓ QR SCANNED</h2>' +
-    '<div class="qr-value">' +
-    decodedText +
-    '</div>' +
-    '<p>QR code successfully detected.</p>' +
+    '<div class="loading">' +
+    '<h2>Checking student...</h2>' +
+    '<p>QR ID: <b>' + qrId + '</b></p>' +
     '</div>';
 
-  console.log("QR Code:", decodedText);
 
-  setTimeout(function() {
-    isProcessing = false;
+  /*
+  ==================================================
+  SEND QR ID TO GOOGLE APPS SCRIPT
+  ==================================================
+  */
+
+  const callbackName =
+    "vrnhsCallback_" + Date.now();
+
+
+  window[callbackName] = function(result) {
+
+    try {
+
+      if (result.success) {
+
+        document.getElementById("result").innerHTML =
+          '<div class="success">' +
+
+          '<h2>✓ ENTRY RECORDED</h2>' +
+
+          '<div class="student-name">' +
+          result.name +
+          '</div>' +
+
+          '<div class="details">' +
+
+          '<div><b>Grade:</b> ' +
+          result.grade +
+          '</div>' +
+
+          '<div><b>Section:</b> ' +
+          result.section +
+          '</div>' +
+
+          '<div><b>QR ID:</b> ' +
+          result.qrId +
+          '</div>' +
+
+          '<div><b>Time:</b> ' +
+          result.time +
+          '</div>' +
+
+          '</div>' +
+
+          '</div>';
+
+      } else {
+
+        document.getElementById("result").innerHTML =
+          '<div class="error">' +
+
+          '<h2>✕ NOT RECORDED</h2>' +
+
+          '<p>' +
+          result.message +
+          '</p>' +
+
+          '</div>';
+      }
+
+    } catch (error) {
+
+      document.getElementById("result").innerHTML =
+        '<div class="error">' +
+        '<h2>System Error</h2>' +
+        '<p>' + error + '</p>' +
+        '</div>';
+
+    }
+
+
+    /*
+    Reset scanner after 3 seconds
+    */
+
+    setTimeout(function() {
+
+      isProcessing = false;
+
+      document.getElementById("result").innerHTML =
+        "<p>Ready to scan next student...</p>";
+
+    }, 3000);
+
+
+    delete window[callbackName];
+  };
+
+
+  /*
+  ==================================================
+  CREATE JSONP REQUEST
+  ==================================================
+  */
+
+  const script = document.createElement("script");
+
+  script.src =
+    APP_SCRIPT_URL +
+    "?action=record" +
+    "&qrId=" +
+    encodeURIComponent(qrId) +
+    "&callback=" +
+    callbackName;
+
+  script.onerror = function() {
 
     document.getElementById("result").innerHTML =
-      "<p>Ready to scan next student...</p>";
+      '<div class="error">' +
+      '<h2>Connection Error</h2>' +
+      '<p>Unable to connect to the attendance server.</p>' +
+      '</div>';
 
-  }, 2500);
+    setTimeout(function() {
+
+      isProcessing = false;
+
+      document.getElementById("result").innerHTML =
+        "<p>Ready to scan next student...</p>";
+
+    }, 3000);
+
+  };
+
+
+  document.body.appendChild(script);
+
 }
+
 
 function onScanFailure(error) {
-  // Ignore normal scanning failures.
+  // Normal scanning failures are ignored.
 }
+
+
+/*
+====================================================
+START CAMERA
+====================================================
+*/
 
 const html5QrCode = new Html5Qrcode("reader");
 
 const config = {
+
   fps: 10,
+
   qrbox: {
     width: 280,
     height: 280
   },
+
   aspectRatio: 1.0
 };
 
+
 Html5Qrcode.getCameras()
+
   .then(devices => {
 
     if (devices && devices.length) {
 
       let cameraId = devices[0].id;
 
-      // Prefer the back camera when available
+      /*
+      Prefer the rear camera
+      */
+
       if (devices.length > 1) {
         cameraId = devices[devices.length - 1].id;
       }
 
+
       html5QrCode.start(
+
         cameraId,
+
         config,
+
         onScanSuccess,
+
         onScanFailure
+
       );
 
     } else {
@@ -159,6 +323,7 @@ Html5Qrcode.getCameras()
     }
 
   })
+
   .catch(err => {
 
     document.getElementById("result").innerHTML =
